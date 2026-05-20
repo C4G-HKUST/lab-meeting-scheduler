@@ -110,6 +110,16 @@
     "zixuan_ye",
     "bo_yang"
   ],
-  "schedule": [],
+  "schedule": [
+    {
+      "date": "2026-05-27",
+      "presenterId": "yatian_wang",
+      "status": "completed",
+      "title": "",
+      "files": [
+        "slides/2026-05-27_yatian-wang.pdf"
+      ]
+    }
+  ],
   "skippedDates": []
 }
