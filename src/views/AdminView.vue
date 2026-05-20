@@ -10,8 +10,8 @@ import FileUpload from '../components/FileUpload.vue'
 import { isPast } from '../utils/dateUtils'
 
 const {
-  fullSchedule, loading, error, scheduleData,
-  loadSchedule, getMember,
+  fullSchedule, loading, error, scheduleData, hasUnsavedChanges,
+  loadSchedule, saveAllChanges, discardChanges, getMember,
   skipWeek, unskipWeek, swapPresenters,
   addMember, removeMember, markCompleted,
   addFileToEntry, moveInRotation,
@@ -26,7 +26,7 @@ const swapSourceDate = ref('')
 const uploadDate = ref('')
 const uploadPresenter = ref('')
 const activeTab = ref('schedule')
-const actionLoading = ref(false)
+const saving = ref(false)
 const actionMessage = ref('')
 
 onMounted(() => {
@@ -53,7 +53,7 @@ async function handleLogin(password, callback) {
   }
 }
 
-function requireAuth(action) {
+function requireAuth() {
   if (!isAuthenticated.value) {
     showPasswordDialog.value = true
     return false
@@ -61,35 +61,40 @@ function requireAuth(action) {
   return true
 }
 
-async function handleSkip(date) {
+// === Save all changes at once ===
+async function handleSave() {
   if (!requireAuth()) return
-  const reason = prompt('Reason for skipping (optional):') || ''
-  actionLoading.value = true
+  saving.value = true
+  actionMessage.value = ''
   try {
-    await skipWeek(date, reason)
-    actionMessage.value = 'Week skipped successfully!'
-    await loadSchedule()
+    await saveAllChanges('Update schedule via admin panel')
+    actionMessage.value = 'All changes saved successfully!'
   } catch (e) {
-    actionMessage.value = 'Failed to skip week.'
+    actionMessage.value = 'Failed to save. Please try again.'
   } finally {
-    actionLoading.value = false
-    setTimeout(() => actionMessage.value = '', 3000)
+    saving.value = false
+    setTimeout(() => actionMessage.value = '', 4000)
   }
 }
 
-async function handleUnskip(date) {
+async function handleDiscard() {
+  if (!confirm('Discard all unsaved changes?')) return
+  await discardChanges()
+  actionMessage.value = 'Changes discarded.'
+  setTimeout(() => actionMessage.value = '', 3000)
+}
+
+// === Local-only operations (no network calls) ===
+
+function handleSkip(date) {
   if (!requireAuth()) return
-  actionLoading.value = true
-  try {
-    await unskipWeek(date)
-    actionMessage.value = 'Week restored successfully!'
-    await loadSchedule()
-  } catch (e) {
-    actionMessage.value = 'Failed to restore week.'
-  } finally {
-    actionLoading.value = false
-    setTimeout(() => actionMessage.value = '', 3000)
-  }
+  const reason = prompt('Reason for skipping (optional):') || ''
+  skipWeek(date, reason)
+}
+
+function handleUnskip(date) {
+  if (!requireAuth()) return
+  unskipWeek(date)
 }
 
 function handleSwapClick(date) {
@@ -98,19 +103,9 @@ function handleSwapClick(date) {
   showSwapModal.value = true
 }
 
-async function handleSwapConfirm(date1, date2) {
+function handleSwapConfirm(date1, date2) {
   showSwapModal.value = false
-  actionLoading.value = true
-  try {
-    await swapPresenters(date1, date2)
-    actionMessage.value = 'Swap successful!'
-    await loadSchedule()
-  } catch (e) {
-    actionMessage.value = 'Swap failed.'
-  } finally {
-    actionLoading.value = false
-    setTimeout(() => actionMessage.value = '', 3000)
-  }
+  swapPresenters(date1, date2)
 }
 
 function handleUploadClick(date) {
@@ -123,78 +118,32 @@ function handleUploadClick(date) {
 
 async function handleFileUploaded(filepath) {
   showFileUpload.value = false
-  actionLoading.value = true
-  try {
-    await addFileToEntry(uploadDate.value, filepath)
-    actionMessage.value = 'File uploaded successfully!'
-    await loadSchedule()
-  } catch (e) {
-    actionMessage.value = 'Failed to record file in schedule.'
-  } finally {
-    actionLoading.value = false
-    setTimeout(() => actionMessage.value = '', 3000)
-  }
+  addFileToEntry(uploadDate.value, filepath)
+  actionMessage.value = 'File uploaded! Remember to click Save to update the schedule.'
+  setTimeout(() => actionMessage.value = '', 4000)
 }
 
-async function handleComplete(date) {
+function handleComplete(date) {
   if (!requireAuth()) return
   const title = prompt('Paper title (optional):') || ''
-  actionLoading.value = true
-  try {
-    await markCompleted(date, title)
-    actionMessage.value = 'Marked as completed!'
-    await loadSchedule()
-  } catch (e) {
-    actionMessage.value = 'Failed to update.'
-  } finally {
-    actionLoading.value = false
-    setTimeout(() => actionMessage.value = '', 3000)
-  }
+  markCompleted(date, title)
 }
 
-async function handleAddMember(name, position) {
+function handleAddMember(name, position) {
   if (!requireAuth()) return
-  actionLoading.value = true
-  try {
-    await addMember(name, position)
-    actionMessage.value = `${name} added to rotation!`
-    await loadSchedule()
-  } catch (e) {
-    actionMessage.value = 'Failed to add member.'
-  } finally {
-    actionLoading.value = false
-    setTimeout(() => actionMessage.value = '', 3000)
-  }
+  addMember(name, position)
 }
 
-async function handleRemoveMember(memberId) {
+function handleRemoveMember(memberId) {
   if (!requireAuth()) return
   const member = getMember(memberId)
   if (!confirm(`Remove ${member?.name || memberId} from rotation?`)) return
-  actionLoading.value = true
-  try {
-    await removeMember(memberId)
-    actionMessage.value = 'Member removed from rotation.'
-    await loadSchedule()
-  } catch (e) {
-    actionMessage.value = 'Failed to remove member.'
-  } finally {
-    actionLoading.value = false
-    setTimeout(() => actionMessage.value = '', 3000)
-  }
+  removeMember(memberId)
 }
 
-async function handleReorder(memberId, newIndex) {
+function handleReorder(memberId, newIndex) {
   if (!requireAuth()) return
-  actionLoading.value = true
-  try {
-    await moveInRotation(memberId, newIndex)
-    await loadSchedule()
-  } catch (e) {
-    actionMessage.value = 'Failed to reorder.'
-  } finally {
-    actionLoading.value = false
-  }
+  moveInRotation(memberId, newIndex)
 }
 </script>
 
@@ -220,6 +169,34 @@ async function handleReorder(memberId, newIndex) {
       </div>
     </div>
 
+    <!-- Unsaved changes bar -->
+    <div
+      v-if="hasUnsavedChanges"
+      class="mb-4 px-4 py-3 bg-orange-50 border border-orange-200 rounded-lg flex items-center justify-between"
+    >
+      <div class="flex items-center space-x-2">
+        <span class="inline-block w-2 h-2 bg-orange-500 rounded-full animate-pulse"></span>
+        <span class="text-sm font-medium text-orange-800">You have unsaved changes</span>
+      </div>
+      <div class="flex space-x-2">
+        <button
+          @click="handleDiscard"
+          :disabled="saving"
+          class="px-3 py-1.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50"
+        >
+          Discard
+        </button>
+        <button
+          @click="handleSave"
+          :disabled="saving"
+          class="px-4 py-1.5 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50"
+        >
+          <span v-if="saving">Saving...</span>
+          <span v-else>Save All Changes</span>
+        </button>
+      </div>
+    </div>
+
     <!-- Action message -->
     <div
       v-if="actionMessage"
@@ -231,10 +208,10 @@ async function handleReorder(memberId, newIndex) {
       {{ actionMessage }}
     </div>
 
-    <!-- Loading overlay -->
-    <div v-if="actionLoading" class="mb-4 flex items-center text-blue-600">
+    <!-- Saving overlay -->
+    <div v-if="saving" class="mb-4 flex items-center text-blue-600">
       <div class="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600 mr-2"></div>
-      <span class="text-sm">Saving changes...</span>
+      <span class="text-sm">Pushing changes to GitHub...</span>
     </div>
 
     <!-- Tabs -->
@@ -273,7 +250,7 @@ async function handleReorder(memberId, newIndex) {
       <div v-show="activeTab === 'schedule'" class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
         <div class="flex items-center justify-between mb-4">
           <h2 class="text-xl font-semibold text-gray-900">Schedule</h2>
-          <p class="text-xs text-gray-500">Click actions to modify. Authentication required.</p>
+          <p class="text-xs text-gray-500">Make changes locally, then click "Save All Changes" to push.</p>
         </div>
         <ScheduleTable
           :schedule="adminSchedule"

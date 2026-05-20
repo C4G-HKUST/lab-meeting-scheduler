@@ -8,9 +8,14 @@ const scheduleSha = ref(null)
 const loading = ref(false)
 const error = ref('')
 const fullSchedule = ref([])
+const hasUnsavedChanges = ref(false)
 
 /**
  * Schedule management composable
+ *
+ * Architecture: Edit locally → Save all at once
+ * - All modifications happen in memory (scheduleData)
+ * - Changes are only pushed to GitHub when user clicks "Save"
  */
 export function useSchedule() {
   /**
@@ -23,6 +28,7 @@ export function useSchedule() {
       const { data, sha } = await readSchedule()
       scheduleData.value = data
       scheduleSha.value = sha
+      hasUnsavedChanges.value = false
       // Generate full schedule with auto-rotation
       fullSchedule.value = generateSchedule(data, 30)
     } catch (e) {
@@ -34,15 +40,16 @@ export function useSchedule() {
   }
 
   /**
-   * Save schedule data to GitHub (with auto-retry on SHA conflict)
+   * Save all pending changes to GitHub (with auto-retry on SHA conflict)
    */
-  async function saveSchedule(message = 'Update schedule') {
+  async function saveAllChanges(message = 'Update schedule') {
     if (!scheduleData.value) return
     const maxRetries = 3
     for (let attempt = 0; attempt < maxRetries; attempt++) {
       try {
         const newSha = await writeSchedule(scheduleData.value, scheduleSha.value, message)
         scheduleSha.value = newSha
+        hasUnsavedChanges.value = false
         // Regenerate schedule
         fullSchedule.value = generateSchedule(scheduleData.value, 30)
         return // success
@@ -50,10 +57,8 @@ export function useSchedule() {
         if (e.status === 409 && attempt < maxRetries - 1) {
           // SHA conflict - re-fetch latest SHA and retry
           console.warn(`SHA conflict (attempt ${attempt + 1}), re-fetching...`)
-          const { data, sha } = await readSchedule()
+          const { sha } = await readSchedule()
           scheduleSha.value = sha
-          // Merge: keep our local changes but use the new SHA
-          // (our scheduleData.value already has the desired state)
         } else {
           error.value = 'Failed to save changes. Please try again.'
           console.error(e)
@@ -61,6 +66,21 @@ export function useSchedule() {
         }
       }
     }
+  }
+
+  /**
+   * Mark local data as changed and regenerate schedule view
+   */
+  function markChanged() {
+    hasUnsavedChanges.value = true
+    fullSchedule.value = generateSchedule(scheduleData.value, 30)
+  }
+
+  /**
+   * Discard unsaved changes and reload from GitHub
+   */
+  async function discardChanges() {
+    await loadSchedule()
   }
 
   /**
@@ -88,9 +108,9 @@ export function useSchedule() {
   }
 
   /**
-   * Skip a week
+   * Skip a week (local only, call saveAllChanges to push)
    */
-  async function skipWeek(date, reason = '') {
+  function skipWeek(date, reason = '') {
     if (!scheduleData.value) return
     if (!scheduleData.value.skippedDates) {
       scheduleData.value.skippedDates = []
@@ -99,7 +119,6 @@ export function useSchedule() {
       scheduleData.value.skippedDates.push(date)
       scheduleData.value.skippedDates.sort()
     }
-    // Also update the schedule entry if it exists
     const entry = scheduleData.value.schedule.find(e => e.date === date)
     if (entry) {
       entry.status = 'skipped'
@@ -114,33 +133,32 @@ export function useSchedule() {
         skipReason: reason,
       })
     }
-    await saveSchedule(`Skip meeting on ${date}${reason ? ': ' + reason : ''}`)
+    markChanged()
   }
 
   /**
-   * Unskip a week
+   * Unskip a week (local only)
    */
-  async function unskipWeek(date) {
+  function unskipWeek(date) {
     if (!scheduleData.value) return
     scheduleData.value.skippedDates = (scheduleData.value.skippedDates || []).filter(d => d !== date)
     const entryIdx = scheduleData.value.schedule.findIndex(e => e.date === date && e.status === 'skipped')
     if (entryIdx !== -1) {
       scheduleData.value.schedule.splice(entryIdx, 1)
     }
-    await saveSchedule(`Unskip meeting on ${date}`)
+    markChanged()
   }
 
   /**
-   * Swap two presenters
+   * Swap two presenters (local only)
    */
-  async function swapPresenters(date1, date2) {
+  function swapPresenters(date1, date2) {
     if (!scheduleData.value) return
 
     // Ensure both dates have schedule entries
     for (const date of [date1, date2]) {
       const existing = scheduleData.value.schedule.find(e => e.date === date)
       if (!existing) {
-        // Find from generated schedule
         const generated = fullSchedule.value.find(e => e.date === date)
         if (generated) {
           scheduleData.value.schedule.push({ ...generated })
@@ -155,41 +173,37 @@ export function useSchedule() {
       entry1.presenterId = entry2.presenterId
       entry2.presenterId = tempPresenter
     }
-
-    const name1 = getMember(entry1?.presenterId)?.name || 'Unknown'
-    const name2 = getMember(entry2?.presenterId)?.name || 'Unknown'
-    await saveSchedule(`Swap: ${name1} (${date1}) <-> ${name2} (${date2})`)
+    markChanged()
   }
 
   /**
-   * Add a new member
+   * Add a new member (local only)
    */
-  async function addMember(name, position) {
+  function addMember(name, position) {
     if (!scheduleData.value) return
     const id = 'member_' + Date.now()
     scheduleData.value.members.push({ id, name, email: '' })
-    if (position !== undefined) {
-      scheduleData.value.rotation.splice(position, 0, id)
+    if (position !== undefined && position !== null && position !== '') {
+      scheduleData.value.rotation.splice(parseInt(position), 0, id)
     } else {
       scheduleData.value.rotation.push(id)
     }
-    await saveSchedule(`Add member: ${name}`)
+    markChanged()
   }
 
   /**
-   * Remove a member from rotation (keep in members list for history)
+   * Remove a member from rotation (local only)
    */
-  async function removeMember(memberId) {
+  function removeMember(memberId) {
     if (!scheduleData.value) return
     scheduleData.value.rotation = scheduleData.value.rotation.filter(id => id !== memberId)
-    const member = getMember(memberId)
-    await saveSchedule(`Remove from rotation: ${member?.name || memberId}`)
+    markChanged()
   }
 
   /**
-   * Mark a presentation as completed
+   * Mark a presentation as completed (local only)
    */
-  async function markCompleted(date, title = '') {
+  function markCompleted(date, title = '') {
     if (!scheduleData.value) return
     let entry = scheduleData.value.schedule.find(e => e.date === date)
     if (!entry) {
@@ -203,13 +217,13 @@ export function useSchedule() {
       entry.status = 'completed'
       if (title) entry.title = title
     }
-    await saveSchedule(`Mark completed: ${date}`)
+    markChanged()
   }
 
   /**
-   * Add a file reference to a schedule entry
+   * Add a file reference to a schedule entry (local only)
    */
-  async function addFileToEntry(date, filepath) {
+  function addFileToEntry(date, filepath) {
     if (!scheduleData.value) return
     let entry = scheduleData.value.schedule.find(e => e.date === date)
     if (!entry) {
@@ -226,20 +240,20 @@ export function useSchedule() {
       }
       entry.status = 'completed'
     }
-    await saveSchedule(`Upload slides for ${date}`)
+    markChanged()
   }
 
   /**
-   * Move member in rotation order
+   * Move member in rotation order (local only)
    */
-  async function moveInRotation(memberId, newIndex) {
+  function moveInRotation(memberId, newIndex) {
     if (!scheduleData.value) return
     const rotation = scheduleData.value.rotation
     const currentIdx = rotation.indexOf(memberId)
     if (currentIdx === -1) return
     rotation.splice(currentIdx, 1)
     rotation.splice(newIndex, 0, memberId)
-    await saveSchedule('Reorder rotation')
+    markChanged()
   }
 
   return {
@@ -247,10 +261,12 @@ export function useSchedule() {
     fullSchedule,
     loading,
     error,
+    hasUnsavedChanges,
     upcomingSchedule,
     pastSchedule,
     loadSchedule,
-    saveSchedule,
+    saveAllChanges,
+    discardChanges,
     getMember,
     skipWeek,
     unskipWeek,
