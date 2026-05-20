@@ -1,5 +1,5 @@
 import { ref, computed } from 'vue'
-import { readSchedule, writeSchedule } from './useGithubApi'
+import { readSchedule, writeSchedule, ensureScheduleSha } from './useGithubApi'
 import { generateSchedule } from '../utils/rotation'
 import { formatDate, isPast } from '../utils/dateUtils'
 
@@ -45,6 +45,10 @@ export function useSchedule() {
   async function saveAllChanges(message = 'Update schedule') {
     if (!scheduleData.value) return
     const maxRetries = 3
+    // Ensure we have SHA before saving
+    if (!scheduleSha.value) {
+      scheduleSha.value = await ensureScheduleSha()
+    }
     for (let attempt = 0; attempt < maxRetries; attempt++) {
       try {
         const newSha = await writeSchedule(scheduleData.value, scheduleSha.value, message)
@@ -57,8 +61,7 @@ export function useSchedule() {
         if (e.status === 409 && attempt < maxRetries - 1) {
           // SHA conflict - re-fetch latest SHA and retry
           console.warn(`SHA conflict (attempt ${attempt + 1}), re-fetching...`)
-          const { sha } = await readSchedule()
-          scheduleSha.value = sha
+          scheduleSha.value = await ensureScheduleSha()
         } else {
           error.value = 'Failed to save changes. Please try again.'
           console.error(e)
