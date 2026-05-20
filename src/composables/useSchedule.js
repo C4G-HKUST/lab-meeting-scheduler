@@ -34,19 +34,32 @@ export function useSchedule() {
   }
 
   /**
-   * Save schedule data to GitHub
+   * Save schedule data to GitHub (with auto-retry on SHA conflict)
    */
   async function saveSchedule(message = 'Update schedule') {
     if (!scheduleData.value) return
-    try {
-      const newSha = await writeSchedule(scheduleData.value, scheduleSha.value, message)
-      scheduleSha.value = newSha
-      // Regenerate schedule
-      fullSchedule.value = generateSchedule(scheduleData.value, 30)
-    } catch (e) {
-      error.value = 'Failed to save changes. Please try again.'
-      console.error(e)
-      throw e
+    const maxRetries = 3
+    for (let attempt = 0; attempt < maxRetries; attempt++) {
+      try {
+        const newSha = await writeSchedule(scheduleData.value, scheduleSha.value, message)
+        scheduleSha.value = newSha
+        // Regenerate schedule
+        fullSchedule.value = generateSchedule(scheduleData.value, 30)
+        return // success
+      } catch (e) {
+        if (e.status === 409 && attempt < maxRetries - 1) {
+          // SHA conflict - re-fetch latest SHA and retry
+          console.warn(`SHA conflict (attempt ${attempt + 1}), re-fetching...`)
+          const { data, sha } = await readSchedule()
+          scheduleSha.value = sha
+          // Merge: keep our local changes but use the new SHA
+          // (our scheduleData.value already has the desired state)
+        } else {
+          error.value = 'Failed to save changes. Please try again.'
+          console.error(e)
+          throw e
+        }
+      }
     }
   }
 
