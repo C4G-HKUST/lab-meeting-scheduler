@@ -110,17 +110,6 @@
     "zixuan_ye",
     "bo_yang"
   ],
-  "schedule": [
-    {
-      "date": "2026-05-27",
-      "presenterId": null,
-      "status": "skipped",
-      "title": "",
-      "files": [],
-      "skipReason": "holiday"
-    }
-  ],
-  "skippedDates": [
-    "2026-05-27"
-  ]
+  "schedule": [],
+  "skippedDates": []
 }
