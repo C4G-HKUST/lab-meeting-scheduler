@@ -79,24 +79,36 @@
       "id": "lianyu_pang",
       "name": "Lianyu Pang",
       "email": ""
+    },
+    {
+      "id": "member_1779276818794",
+      "name": "Qingming Liu",
+      "email": ""
+    },
+    {
+      "id": "member_1779276945943",
+      "name": "Zhe Kong",
+      "email": ""
     }
   ],
   "rotation": [
-    "yiyang_cai",
-    "zhiqiang_wang",
     "yatian_wang",
-    "gongye_liu",
-    "zixuan_ye",
+    "member_1779276818794",
+    "yiyang_cai",
     "haoqiang_guo",
-    "zhizhou_zhong",
-    "bo_yang",
+    "hanxiao_sun",
     "weixiang_zhang",
-    "huaqiu_li",
+    "zebin_he",
+    "member_1779276945943",
+    "gongye_liu",
+    "zhiqiang_wang",
     "liqi_lin",
     "nan_chen",
-    "hanxiao_sun",
-    "zebin_he",
-    "lianyu_pang"
+    "lianyu_pang",
+    "huaqiu_li",
+    "zhizhou_zhong",
+    "zixuan_ye",
+    "bo_yang"
   ],
   "schedule": [
     {
