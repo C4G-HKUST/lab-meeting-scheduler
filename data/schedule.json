@@ -1,0 +1,43 @@
+{
+  "settings": {
+    "meetingDay": "wednesday",
+    "startDate": "2026-05-21",
+    "title": "C4G Lab Meeting"
+  },
+  "members": [
+    { "id": "zhiqiang_wang", "name": "Zhiqiang Wang", "email": "" },
+    { "id": "yiyang_cai", "name": "Yiyang Cai", "email": "" },
+    { "id": "yatian_wang", "name": "Yatian Wang", "email": "" },
+    { "id": "gongye_liu", "name": "Gongye Liu", "email": "" },
+    { "id": "zixuan_ye", "name": "Zixuan Ye", "email": "" },
+    { "id": "haoqiang_guo", "name": "Haoqiang Guo", "email": "" },
+    { "id": "zhizhou_zhong", "name": "Zhizhou Zhong", "email": "" },
+    { "id": "bo_yang", "name": "Bo Yang", "email": "" },
+    { "id": "weixiang_zhang", "name": "Weixiang Zhang", "email": "" },
+    { "id": "huaqiu_li", "name": "Huaqiu Li", "email": "" },
+    { "id": "liqi_lin", "name": "Liqi Lin", "email": "" },
+    { "id": "nan_chen", "name": "Nan Chen", "email": "" },
+    { "id": "hanxiao_sun", "name": "Hanxiao Sun", "email": "" },
+    { "id": "zebin_he", "name": "Zebin He", "email": "" },
+    { "id": "lianyu_pang", "name": "Lianyu Pang", "email": "" }
+  ],
+  "rotation": [
+    "zhiqiang_wang",
+    "yiyang_cai",
+    "yatian_wang",
+    "gongye_liu",
+    "zixuan_ye",
+    "haoqiang_guo",
+    "zhizhou_zhong",
+    "bo_yang",
+    "weixiang_zhang",
+    "huaqiu_li",
+    "liqi_lin",
+    "nan_chen",
+    "hanxiao_sun",
+    "zebin_he",
+    "lianyu_pang"
+  ],
+  "schedule": [],
+  "skippedDates": []
+}
