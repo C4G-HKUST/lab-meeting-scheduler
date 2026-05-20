@@ -30,13 +30,28 @@ export function getOctokit() {
 
 /**
  * Read a file via raw.githubusercontent.com (no rate limit, no auth needed)
- * Does NOT return SHA (use getFileSha for that)
+ * Note: has ~5 min CDN cache, so may return stale data after commits
  */
 async function readFileRaw(path) {
   const url = `https://raw.githubusercontent.com/${REPO_OWNER}/${REPO_NAME}/${BRANCH}/${path}?t=${Date.now()}`
   const response = await fetch(url)
   if (!response.ok) throw new Error(`Failed to read ${path}: ${response.status}`)
   return await response.text()
+}
+
+/**
+ * Read a file via GitHub API (authenticated, always fresh, no cache)
+ */
+async function readFileApi(path) {
+  const response = await octokitInstance.repos.getContent({
+    owner: REPO_OWNER,
+    repo: REPO_NAME,
+    path,
+  })
+  return {
+    content: atob(response.data.content),
+    sha: response.data.sha,
+  }
 }
 
 /**
@@ -63,25 +78,23 @@ async function getFileSha(path) {
 }
 
 /**
- * Read the schedule data (uses raw URL, no rate limit)
+ * Read the schedule data
+ * - Authenticated: uses API (always fresh, returns SHA)
+ * - Not authenticated: uses raw URL (may have cache delay)
  */
 export async function readSchedule() {
-  const content = await readFileRaw(DATA_PATH)
-  const data = JSON.parse(content)
-  // Get SHA only if authenticated (needed for saving later)
-  let sha = null
   if (octokitInstance) {
-    try {
-      sha = await getFileSha(DATA_PATH)
-    } catch (e) {
-      console.warn('Failed to get SHA, will retry on save:', e)
-    }
+    // Authenticated: use API for fresh data + SHA
+    const { content, sha } = await readFileApi(DATA_PATH)
+    return { data: JSON.parse(content), sha }
   }
-  return { data, sha }
+  // Not authenticated: use raw URL (no rate limit, but may be cached)
+  const content = await readFileRaw(DATA_PATH)
+  return { data: JSON.parse(content), sha: null }
 }
 
 /**
- * Read the encrypted token (uses raw URL, no rate limit)
+ * Read the encrypted token (always uses raw URL since this is pre-auth)
  */
 export async function readEncryptedToken() {
   const content = await readFileRaw(TOKEN_PATH)
