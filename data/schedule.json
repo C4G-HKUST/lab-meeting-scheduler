@@ -98,6 +98,17 @@
     "zebin_he",
     "lianyu_pang"
   ],
-  "schedule": [],
-  "skippedDates": []
+  "schedule": [
+    {
+      "date": "2026-05-27",
+      "presenterId": null,
+      "status": "skipped",
+      "title": "",
+      "files": [],
+      "skipReason": "111"
+    }
+  ],
+  "skippedDates": [
+    "2026-05-27"
+  ]
 }
